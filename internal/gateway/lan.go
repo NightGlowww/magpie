@@ -672,6 +672,7 @@ func identifyCaller(w http.ResponseWriter, r *http.Request) (*http.Request, bool
 	if ok {
 		r = r.WithContext(access.WithIdentity(r.Context(), who))
 	}
+	r = keepCodexListAuth(r, ok)
 	r.Header = r.Header.Clone()
 	r.Header.Set("Authorization", "Bearer "+Token)
 	for _, h := range []string{"x-api-key", "x-goog-api-key"} {
