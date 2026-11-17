@@ -22,10 +22,10 @@ const ImageLane = "images"
 // vendor's refusal keeps it resting; false when it is not.
 var ImageRest func(agent, user string, now time.Time) (time.Time, bool)
 
-// ImageHeard is, set by the gateway, the image window the ChatGPT account
-// user's last reply of the images API told, while it has not renewed;
-// false when none told one.
-var ImageHeard func(agent, user string, now time.Time) (CodexLimit, bool)
+// ImageHeard is the image window the ChatGPT account user's last reply of
+// the images API told, kept across magpies until it renews; false when
+// none told one.
+var ImageHeard = CodexImageLimit
 
 // WithImageLane is qs with a row for the image allowance added to each
 // ChatGPT account's card that was read: Text and Aside, so no share is told

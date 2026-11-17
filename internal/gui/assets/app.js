@@ -14298,7 +14298,7 @@ function accountQuota(data, user, capFor = () => 0, settable = null, prov) {
   const ws = familyWindows(counted);
   if (!ws.length) { line.append(el("span", "aq-none", t("Unlimited"))); return line; }
   if (ws.some((w) => w.members)) return poolLine(line, ws, q, capFor, settable);
-  line.title = ws.slice(2).map((w) => w.tiers ? tiersText(w) : t(w.name) + " " + quotaText(w)).join(ws !== counted ? "\n" : " · ");
+  line.title = ws.slice(2).map((w) => w.tiers ? tiersText(w) : quotaTip(w)).join(ws !== counted ? "\n" : " · ");
   if (q.asOf) line.title = tipLines(line.title, asOfText(q));
   for (const w of ws.slice(0, 2)) {
     const used = to100(w.used);
@@ -14308,12 +14308,9 @@ function accountQuota(data, user, capFor = () => 0, settable = null, prov) {
     fill.style.width = quotaFill(w) + "%";
     track.append(fill);
     capMark(track, w, capFor(w));
-    m.append(el("span", "aq-n", t(w.name)), ...(quotaNoShare(w) ? [] : [track]), el("b", "", quotaText(w)));
-    if (w.resetsAt) {
-      const at = new Date(w.resetsAt);
-      m.title = resetText(at, at.toLocaleString(intlLang()));
-      m.append(el("span", "aq-r", resetInText(at)));
-    }
+    m.append(el("span", "aq-n", quotaLabel(w)), ...(quotaNoShare(w) ? [] : [track]), el("b", "", quotaText(w)));
+    m.title = quotaTip(w);
+    if (w.resetsAt) m.append(el("span", "aq-r", resetInText(new Date(w.resetsAt))));
     const out = runsOutText(w, (at) => at.toLocaleString(intlLang()));
     if (out) m.title = tipLines(m.title, out);
     if (w.tiers) m.title = tiersText(w);
@@ -14329,7 +14326,7 @@ function poolLine(line, ws, q, capFor = () => 0, settable = null) {
   for (const w of ws) {
     const k = w.members ? w.pool : "\0" + pools.length;
     const p = pools.find((x) => x.k === k);
-    if (p) p.ws.push(w); else pools.push({ k, name: w.members ? w.pool : t(w.name), ws: [w] });
+    if (p) p.ws.push(w); else pools.push({ k, name: w.members ? w.pool : quotaLabel(w), ws: [w] });
   }
   if (q.asOf) line.title = asOfText(q);
   for (const p of pools) {
@@ -14346,7 +14343,7 @@ function poolLine(line, ws, q, capFor = () => 0, settable = null) {
       m.append(settable ? settable(part, w) : part);
     }
     const w = p.ws[0];
-    m.title = p.ws.map((x) => t(x.name) + " " + quotaText(x) + (x.resetsAt ? " · " + resetText(new Date(x.resetsAt), new Date(x.resetsAt).toLocaleString(intlLang())) : "")).join("\n")
+    m.title = p.ws.map((x) => quotaTip(x)).join("\n")
       + (w.members ? "\n\n" + poolTip(w) : w.tiers ? "\n\n" + tiersText(w) : "");
     line.append(m);
   }
@@ -14446,7 +14443,7 @@ function capHeldOf(q, capFor) {
     const h = w.capsSome ? some : all;
     h.n++;
     if (w.used >= h.used) { h.used = w.used; h.cap = cap; }
-    const nm = w.pool && !w.family ? w.pool + " · " + t(w.name) : w.name;
+    const nm = w.pool && !w.family ? w.pool + " · " + quotaLabel(w) : w.name;
     if (w.capsSome && !some.names.includes(nm)) some.names.push(nm);
     if (!r) h.unknown = true; else h.back = Math.max(h.back, r);
   }
@@ -14519,14 +14516,14 @@ function windowCapMeter(m, p, user, w) {
   const amount = new Set(amounts).size > 1 ? 0 : amounts[0];
   if (!ids.every(Boolean) || w.ownCap && !(owns[0] % 100) && !amount && !(w.limit > 0)) return m;
   const own = new Set(owns).size > 1 ? 0 : owns[0], cap = accountCapOf(p, user);
-  const name = t(w.name);
+  const name = quotaLabel(w);
   const unit = w.limit > 0 && w.unit ? t(w.unit) : "";
   const amountText = (v) => (countFormat.format(v) + " " + unit).trim();
   const b = spanBtn(el("span", m.className + " aq-set" + (own || amount ? " own" : "")));
   b.append(...m.childNodes);
   if (amount) b.append(el("span", "aq-own", t("Cap {n}", { n: amountText(amount) })));
   else if (own) b.append(el("span", "aq-own", own >= 100 ? t("No cap") : t("Cap {n}%", { n: own })));
-  const reset = m.title || (w.resetsAt ? resetText(new Date(w.resetsAt), new Date(w.resetsAt).toLocaleString(intlLang())) : "");
+  const reset = m.title || quotaTip(w);
   b.title = [reset, w.extra && (amount || own && own < 100) ? t("Once this account has spent {n} of its extra usage, magpie sends it nothing past its plan: it is used until its plan runs out, then rests until the plan renews. Click to change", { n: amount ? amountText(amount) : own + "%" })
     : amount ? t("{window} has a cap of its own: magpie counts this account as used up once it has used {n} of {window}, until it renews. Click to change", { window: name, n: amountText(amount) })
     : own >= 100 ? t("No cap on {window}: it is used to 100%, whatever this account's cap. Click to change", { window: name })
@@ -14681,6 +14678,14 @@ function spanBtn(b) {
   return b;
 }
 function tipLines(...a) { return a.filter(Boolean).join("\n"); }
+// Image generation is the API's window name; the quota row names its allowance.
+const quotaLabel = (w) => t(w.lane === "images" ? "Image allowance" : w.name);
+function quotaTip(w, flip) {
+  const at = w.resetsAt && new Date(w.resetsAt);
+  return tipLines(quotaLabel(w) + " · " + quotaText(w), at && resetText(at, at.toLocaleString(intlLang())) + (flip && at > Date.now() ? " · " + untilText(at) : ""), w.lane === "images"
+    ? t("Separate from chat. Status updates when an image request reports its allowance.")
+    : flip && !quotaNoShare(w) && t(quotaLeft ? "Show how much of each window is used" : "Show how much of each window is left"));
+}
 function quotaFill(w) {
   if (w.used == null) return 0;
   const used = Math.round(to100(w.used));
@@ -14688,6 +14693,7 @@ function quotaFill(w) {
 }
 function quotaText(w) {
   if (w.unlimited) return t("Unlimited");
+  if (w.lane === "images" && (!w.display || w.display === "Unknown")) return t("Not reported");
   if (w.balance != null) return t("{n} left", { n: (countFormat.format(w.balance) + " " + t(w.unit || "")).trim() });
   // a text row used 100 is Claude's overages (claudeOveragesWindow): "In use", said in the reader's language
   if (w.text && w.used >= 100) return t("In use");
@@ -14800,7 +14806,7 @@ function poolWindows(ws) {
       out.push(...fam.filter(mine));
       fam = fam.filter((w) => !mine(w));
     }
-    for (const w of own) out.push({ ...w, name: pool + " · " + t(w.name), window: w.name, members });
+    for (const w of own) out.push({ ...w, name: pool + " · " + quotaLabel(w), window: w.name, members });
   }
   return out.concat(fam);
 }
@@ -14828,7 +14834,7 @@ let quotaView = kept("quotaView", "cards");
 const quotaTableJS = () => (quotaTableJS.p ||= import("./quotatable.js").then(() => renderQuotas(), () => {}));
 // tiersText: a family's windows, one a line, for its tooltip.
 function tiersText(w) {
-  return (w.tiers || []).map((x) => t(x.name) + " " + quotaText(x)
+  return (w.tiers || []).map((x) => quotaLabel(x) + " " + quotaText(x)
     + (x.resetsAt && x.used > 0 ? " · " + resetInText(new Date(x.resetsAt)) : "")).join("\n");
 }
 
@@ -16719,7 +16725,7 @@ function quotaLines(sub) {
     const name = w.pool ? w.pool + " · " + w.name : w.name;
     const l = h.lines.find((x) => x.name === name);
     if (!l?.points?.length || out.some((x) => x.name === l.name)) continue;
-    out.push({ name, label: w.pool ? w.pool + " · " + t(w.name) : t(w.name), window: w, points: quotaPoints(l) });
+    out.push({ name, label: (w.pool ? w.pool + " · " : "") + quotaLabel(w), window: w, points: quotaPoints(l) });
   }
   return out;
 }
@@ -17155,12 +17161,12 @@ function quotaSpark(q, w) {
   if (!(c.start < x1)) return null;
   const W = 200, H = 30;
   const g = sv("svg", { viewBox: `0 0 ${W} ${H}`, preserveAspectRatio: "none", class: "pq-spark", role: "img" });
-  g.setAttribute("aria-label", t("{name}: this cycle", { name: t(w.name) }));
+  g.setAttribute("aria-label", t("{name}: this cycle", { name: quotaLabel(w) }));
   drawQuotaPlot(g, [line], c.start, x1, W, H, now, true);
   const gap = c.reset && sparkGap(line.points, c.start, c.reset, now, W, H);
   if (gap) g.prepend(gap);
   const s = el("span", "pq-spark-box");
-  s.title = t("{name}: what was left this cycle, against an even burn", { name: t(w.name) });
+  s.title = t("{name}: what was left this cycle, against an even burn", { name: quotaLabel(w) });
   const pace = quotaPace(w, now);
   if (pace) s.title += "\n" + t("Pace {n}", { n: paceNumber(pace.n) });
   s.append(g);
@@ -17872,7 +17878,7 @@ function panelQuotaCard(q, first = false) {
   // a pool's 5-hour and weekly rings, every pool's (a third pool once left
   // Claude's out: 01huadalang on Discord), else three
   const fam = familyWindows(q.windows.filter((w) => !w.unlimited && !quotaNoShare(w)));
-  const says = (f) => q.windows.filter(f).map((w) => t(w.name) + " " + quotaText(w)).join(" · ");
+  const says = (f) => q.windows.filter(f).map((w) => quotaLabel(w) + " " + quotaText(w)).join(" · ");
   const tx = says(quotaNoShare), wallets = says((w) => w.balance != null);
   if (!fam.length && (tx || q.windows.some((w) => w.unlimited))) {
     card.append(pqLine(tx || t("Unlimited"), q));
@@ -17911,10 +17917,9 @@ function panelQuotaCard(q, first = false) {
       rn.append(el("span", "", poolWord(w.pool)), el("span", "", shortWindow(w.window)));
     }
     r.append(dial, rn);
-    r.title = t(w.name) + " · " + quotaText(w) + (w.resetsAt ? "\n" + resetText(new Date(w.resetsAt), new Date(w.resetsAt).toLocaleString(intlLang())) + (new Date(w.resetsAt) > Date.now() ? " · " + untilText(new Date(w.resetsAt)) : "") : "")
+    r.title = quotaTip(w, true)
       + (w.tiers ? "\n\n" + tiersText(w) + "\n" : "")
-      + (w.members ? "\n\n" + poolTip(w) + "\n" : "")
-      + "\n" + t(quotaLeft ? "Show how much of each window is used" : "Show how much of each window is left");
+      + (w.members ? "\n\n" + poolTip(w) + "\n" : "");
     // used or left turns here too, as on the Usage page (#124)
     r.onclick = () => setQuotaLeft(!quotaLeft);
     rings.append(r);
@@ -18787,10 +18792,10 @@ function quotaWindows(sub) {
     const [count, share] = text.split(" · ");
     n.append(el("span", "", share ? count + " ·" : count));
     if (share) n.append(" ", el("span", "", share));
-    n.title = w.historyMissing ? text : text + "\n" + t(quotaLeft ? "Show how much of each window is used" : "Show how much of each window is left");
-    n.disabled = !!w.historyMissing;
+    n.title = w.historyMissing ? text : quotaTip(w, true);
+    n.disabled = !!w.historyMissing || quotaNoShare(w);
     n.onclick = () => setQuotaLeft(!quotaLeft);
-    labels.append(el("span", "quota-name", t(w.name)), n);
+    labels.append(el("span", "quota-name", quotaLabel(w)), n);
     const track = el("div", "quota-track");
     const fill = el("i");
     fill.style.width = w.historyMissing ? "0%" : `${quotaFill(w)}%`;

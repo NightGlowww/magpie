@@ -14,18 +14,6 @@ import (
 	"github.com/yetone/magpie/internal/provider"
 )
 
-// forgetImageHeard forgets every image window heard, now and when t ends.
-func forgetImageHeard(t *testing.T) {
-	t.Helper()
-	clear := func() {
-		codexImageHeard.Lock()
-		codexImageHeard.m = map[string]provider.CodexLimit{}
-		codexImageHeard.Unlock()
-	}
-	clear()
-	t.Cleanup(clear)
-}
-
 // imageRowOf is the image row of user's ChatGPT card as it is handed out.
 func imageRowOf(t *testing.T, user string) provider.QuotaWindow {
 	t.Helper()
@@ -44,7 +32,6 @@ func imageRowOf(t *testing.T, user string) provider.QuotaWindow {
 // taken for the account's 5-hour or weekly window.
 func TestCodexImageRowFromA200sHeaders(t *testing.T) {
 	codexSignedIn(t)
-	forgetImageHeard(t)
 	at := time.Now().Add(12 * time.Hour).Truncate(time.Second)
 	up := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		io.ReadAll(r.Body)
@@ -99,7 +86,6 @@ func TestCodexImageRowFromA200sHeaders(t *testing.T) {
 // card said "2 minutes" of a 24-hour window (#6412).
 func TestCodexImageRefusalRestsUntilItsWindow(t *testing.T) {
 	codexSignedIn(t)
-	forgetImageHeard(t)
 	at := time.Now().Add(20 * time.Hour).Truncate(time.Second)
 	up := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		io.ReadAll(r.Body)
@@ -141,13 +127,44 @@ func TestCodexImageRefusalRestsUntilItsWindow(t *testing.T) {
 	if w.ResetsAt == nil || w.ResetsAt.Sub(at).Abs() > 2*time.Second || w.Display != "Used up" {
 		t.Fatalf("after the refusal the row = %+v, want used up until %v", w, at)
 	}
+	// The exact full window is also kept for a restarted magpie or a
+	// terminal that cannot see this gateway's routing rest.
+	if l, ok := provider.CodexImageLimit("codex", "me@example.com", time.Now()); !ok || l.Used != 100 || !l.Resets.Equal(at) {
+		t.Fatalf("the refusal lost its matching full-window observation: %+v, known %v", l, ok)
+	}
+}
+
+// A quota refusal takes precedence over an earlier available header, or
+// one naming another reset. That gateway can show its live rest, but a
+// terminal or a restarted app must not revive the contradicted snapshot.
+func TestCodexImageRefusalInvalidatesContradictedHeaders(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		used float64
+		move time.Duration
+	}{{"available", 0, 0}, {"different reset", 100, time.Hour}} {
+		t.Run(tc.name, func(t *testing.T) {
+			codexSignedIn(t)
+			reset := time.Now().Add(12 * time.Hour).Truncate(time.Second)
+			provider.NoteCodexImageLimit("codex", "me@example.com", provider.CodexLimit{Used: tc.used, Span: 24 * time.Hour, Resets: reset})
+			c := candidate{p: provider.Provider{ID: "codex", Account: &provider.Account{Agent: "codex", User: "me@example.com"}}, model: codexDrawer}
+			t.Cleanup(func() { clearRest(c.restID()) })
+			until := reset.Add(tc.move)
+			restDrawer(c, http.StatusTooManyRequests, `{"error":{"type":"usage_limit_reached","resets_at":`+strconv.FormatInt(until.Unix(), 10)+`}}`)
+			if l, ok := provider.CodexImageLimit("codex", "me@example.com", time.Now()); ok {
+				t.Fatalf("a refusal left its contradicted header observation available: %+v", l)
+			}
+			if w := imageRowOf(t, "me@example.com"); w.Display != "Used up" || w.ResetsAt == nil || !w.ResetsAt.Equal(until) {
+				t.Fatalf("invalidating the snapshot changed the live refusal rest: %+v", w)
+			}
+		})
+	}
 }
 
 // Codex's own drawing, relayed to ChatGPT with its sign-in the only
 // account, tells the image row too.
 func TestCodexRelayedImageWindowHeard(t *testing.T) {
 	codexSignedIn(t)
-	forgetImageHeard(t)
 	at := time.Now().Add(6 * time.Hour).Truncate(time.Second)
 	up := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		io.ReadAll(r.Body)

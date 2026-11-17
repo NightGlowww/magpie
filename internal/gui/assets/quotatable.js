@@ -42,7 +42,8 @@ const spanOf = (name) => {
 function columnOf(w) {
   if (w.window && w.pool) { const f = poolWord(w.pool); return { key: "n:" + f, head: f }; }
   const h = spanOf(w.name);
-  return h < Infinity ? { key: "s:" + h, head: w.name } : { key: "n:" + w.name, head: w.name };
+  const name = w.lane === "images" ? "Image allowance" : w.name;
+  return h < Infinity ? { key: "s:" + h, head: w.name } : { key: "n:" + name, head: name };
 }
 
 // a window's cell: its share and bar, and when it starts again
@@ -53,7 +54,7 @@ function windowCell(w, long) {
   const text = quotaText(w);
   const bar = share(w) >= 0;
   top.append(el("span", "qt-n", bar ? quotaFill(w) + "%" : text));
-  if (long) top.prepend(el("span", "qt-name", t(w.name)), " ");
+  if (long) top.prepend(el("span", "qt-name", quotaLabel(w)), " ");
   box.append(top);
   if (bar) {
     const track = el("div", "quota-track"), fill = el("i");
@@ -63,7 +64,7 @@ function windowCell(w, long) {
   }
   const at = w.resetsAt ? new Date(w.resetsAt) : null;
   if (at) box.append(el("div", "qt-reset", at > Date.now() ? resetClock(at) : t("Reset time passed")));
-  box.title = tipLines(t(w.name) + " · " + text, at && resetText(at, at.toLocaleString(intlLang())), w.tiers && tiersText(w));
+  box.title = tipLines(quotaTip(w), w.tiers && tiersText(w));
   return box;
 }
 
@@ -219,7 +220,7 @@ function quotaTable(subs) {
         } else for (const n of names) {
           const here = inCol(ws, n);
           const c = el("td", "qt-w");
-          for (const w of here) c.append(windowCell(w, here.length > 1 || w.name !== headOf(n)));
+          for (const w of here) c.append(windowCell(w, here.length > 1 || quotaLabel(w) !== t(headOf(n))));
           tr.append(c);
         }
         if (more && !bare({ sub, ws })) {

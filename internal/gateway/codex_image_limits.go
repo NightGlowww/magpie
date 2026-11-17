@@ -3,7 +3,6 @@ package gateway
 import (
 	"net/http"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/yetone/magpie/internal/lazyre"
@@ -60,15 +59,6 @@ func codexImageHeaderLimit(h http.Header, now time.Time) (provider.CodexLimit, b
 	return provider.CodexLimit{}, false
 }
 
-// codexImageHeard is the image window each ChatGPT account's last reply
-// told, by agent (as its usage is read)/lower-cased user.
-var codexImageHeard = struct {
-	sync.Mutex
-	m map[string]provider.CodexLimit
-}{m: map[string]provider.CodexLimit{}}
-
-func init() { provider.ImageHeard = imageHeardOf }
-
 // heardCodexImage keeps the image window h tells of p's ChatGPT account.
 func heardCodexImage(p provider.Provider, h http.Header) {
 	if p.Account == nil || p.Account.Agent != "codex" || p.Account.User == "" || h == nil {
@@ -78,17 +68,12 @@ func heardCodexImage(p provider.Provider, h http.Header) {
 	if !ok {
 		return
 	}
-	codexImageHeard.Lock()
-	codexImageHeard.m[p.Account.UsageAgent()+"/"+strings.ToLower(p.Account.User)] = l
-	codexImageHeard.Unlock()
+	provider.NoteCodexImageLimit(p.Account.UsageAgent(), p.Account.User, l)
 }
 
 // imageHeardOf is the image window a reply last told of agent's account
 // user, while it has not renewed: one with no reset said, or one past
 // it, tells nothing of now.
 func imageHeardOf(agent, user string, now time.Time) (provider.CodexLimit, bool) {
-	codexImageHeard.Lock()
-	l, ok := codexImageHeard.m[agent+"/"+strings.ToLower(user)]
-	codexImageHeard.Unlock()
-	return l, ok && l.Resets.After(now)
+	return provider.CodexImageLimit(agent, user, now)
 }

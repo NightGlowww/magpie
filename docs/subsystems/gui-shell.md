@@ -472,6 +472,14 @@ columns and Other only exist when some row has one). It
 scrolls in its own box at a narrow width, the subscription held at the left.
 See `usage-quota-table.test.cjs` and `usage-table-groups.test.cjs`.
 
+A window with `lane: "images"` is labelled **Image allowance** on both
+cards and the table, including cards from another magpie that still name
+it `Image generation`. Settings' image model picker keeps its own label.
+The image row's `Unknown` display is shown as **Not reported**: it has no
+current reading, rather than no model. Its tooltip explains that image
+allowance is separate from chat and is learned from image replies. It
+never gets a percentage or the button hint for switching Used/Left.
+
 ### The Sessions page's folders
 
 The Sessions page lists an agent's project folders as one list, newest

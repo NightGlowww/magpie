@@ -1352,6 +1352,14 @@ func restDrawer(c candidate, code int, msg string) {
 	restingUntil.m[r.Key] = r.Until
 	restingUntil.note[r.Key] = r
 	restingUntil.Unlock()
+	if agent == "codex" && strings.HasPrefix(c.model, codexDrawerFamily) &&
+		(!told || heard.Used < 100 || !heard.Resets.Equal(r.Until)) {
+		// The last header snapshot may have said available (or named a
+		// different reset). Only this process knows the refusal's rest;
+		// don't let another one revive that earlier observation. A full
+		// window whose reset agrees with the refusal remains valid.
+		provider.ForgetCodexImageLimit(agent, user)
+	}
 }
 
 // saidStatus is the status an error said inside a drawing's 200 stands

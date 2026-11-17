@@ -23,11 +23,11 @@ const quotas = [
 ];
 
 const words = {
-  en: { name: "Image generation", used: "Used up", unknown: "Unknown", ok: "Available" },
-  zh: { name: "生图模型", used: "已用完", unknown: "未知", ok: "可用" },
-  "zh-TW": { name: "生圖模型", used: "已用完", unknown: "未知", ok: "可用" },
-  ja: { name: "画像生成", used: "使い切り", unknown: "不明", ok: "利用可能" },
-  de: { name: "Bilderzeugung", used: "Aufgebraucht", unknown: "Unbekannt", ok: "Verfügbar" },
+  en: { name: "Image allowance", used: "Used up", unknown: "Not reported", ok: "Available" },
+  zh: { name: "生图额度", used: "已用完", unknown: "未获取", ok: "可用" },
+  "zh-TW": { name: "生圖額度", used: "已用完", unknown: "未取得", ok: "可用" },
+  ja: { name: "画像生成の利用枠", used: "使い切り", unknown: "未取得", ok: "利用可能" },
+  de: { name: "Bildkontingent", used: "Aufgebraucht", unknown: "Nicht gemeldet", ok: "Verfügbar" },
 };
 
 function serve(lang) {
